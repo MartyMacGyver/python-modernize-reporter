@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 """\
 Python Modernize Reporter\
 """
@@ -33,8 +31,10 @@ except ImportError:
     def is_running_under_teamcity(): return False  # noqa: E301, E704
 
 from modernize_reporter import __version__
+from libmodernize import __version__ as __version_modernize__
 from libmodernize.main import main as modernize_main  # Depends on customizations
 
+SCRIPT_NAME = 'python-modernize-reporter'
 TC = TeamcityServiceMessages
 LOG_CAPTURE_STRING = StringIO()
 LOG_LEVEL = logging.DEBUG
@@ -43,8 +43,8 @@ VERBOSE = False
 usage = __doc__ + """\
  %s
 
-Usage: modernize_check [options] file|dir ...
-""" % __version__
+Usage: %s [options] file|dir ...
+""" % (SCRIPT_NAME, __version__)
 
 
 def format_usage(usage):
@@ -56,7 +56,7 @@ def walk_tree(args, root, exclusions=None):
     if exclusions is None:
         exclusions = []
     if os.path.isfile(root):
-        check_modernize(args, root)
+        check_modernizaitons(args, root)
     else:
         for path, dirs, files in os.walk(root):
             dirs[:] = [e for e in sorted(dirs) if not e.startswith('.')]
@@ -66,11 +66,12 @@ def walk_tree(args, root, exclusions=None):
                 if filename.startswith('./'):
                     filename = filename.split('./', 1)[1]
                 if os.path.splitext(elem)[1].lower() == '.py':
-                    check_modernize(args, filename)
+                    check_modernizaitons(args, filename)
 
 
-def check_modernize(args, filename):
-    # print('=' * 78)
+def check_modernizaitons(args, filename):
+    if VERBOSE:
+        print('=' * 78)
     if is_running_under_teamcity():
         TC.testStarted(filename)
     if VERBOSE:
@@ -146,7 +147,7 @@ def check_modernize(args, filename):
 def main(args=None):
     """ Most options are the same as Modernize for pass-through """
     parser = optparse.OptionParser(usage=usage,
-                                   version="modernize %s" % __version__)
+                                   version="%s %s" % (SCRIPT_NAME, __version__))
     parser.formatter.format_usage = format_usage
     parser.add_option("-v", "--verbose", action="store_true",
                       help="Show more verbose logging.")
@@ -174,12 +175,12 @@ def main(args=None):
         global VERBOSE
         VERBOSE = True
 
-    elems_included = args[1:]
+    elems_included = args[:]
     elems_excluded = []
     args_passed = []
     args_local = []
     for option, value in options.__dict__.items():
-        option = option.replace('_', '-')  # optparse converts dashes to underscores - restore them
+        option = option.replace('_', '-')  # restore dashes changed by optparse
         target = args_passed
         if option in []:
             target = args_local
@@ -196,7 +197,9 @@ def main(args=None):
         elif value is None:
             pass
         else:
-            print("Warning: '{}' not handled here: {}".format(option, value))
+            print("Argument '{}' not handled here: {}".format(option, value))
+            parser.print_help()
+            return -1
 
     logger = logging.getLogger('RefactoringTool')
     logger.setLevel(LOG_LEVEL)
@@ -206,23 +209,28 @@ def main(args=None):
     ch.setLevel(LOG_LEVEL)
     logger.addHandler(ch)
 
+    # print("original options:", options)
+    # print("original args:   ", args)
+    # print("local options:   ", args_local)
+    # print("passing options: ", args_passed)
+    # print("included elems:  ", elems_included)
+    # print("excluded elems:  ", elems_excluded)
+
     if not elems_included:
-        print("Use --help to show usage.", file=sys.stderr)
+        parser.print_help()
         return -1
 
+    print('{} {} (importing libmodernize {})'.format(SCRIPT_NAME, __version__, __version_modernize__))
+    print()
     if is_running_under_teamcity():
-        print('Running under TeamCity')
+        print('Note: Running under TeamCity')
     else:
-        print('NOT running under TeamCity')
-    print("original options:", options)
-    print("original args:   ", args)
-    print("local options:   ", args_local)
-    print("passing options: ", args_passed)
-    print("included elems:  ", elems_included)
-    print("excluded elems:  ", elems_excluded)
+        print('Note: NOT running under TeamCity')
     print()
 
     for root in elems_included:
         walk_tree(args=args_passed, root=root, exclusions=elems_excluded)
-    # print('=' * 78)
+    if VERBOSE:
+        print('=' * 78)
+
     return 0
