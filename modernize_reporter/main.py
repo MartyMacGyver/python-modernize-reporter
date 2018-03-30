@@ -16,19 +16,21 @@ except ImportError:
     from io import StringIO  # Python 3
 
 try:
-    from teamcity import (
-        TeamcityServiceMessages,
-        is_running_under_teamcity,
-        # testStarted,
-        # testFinished,
-        # testIgnored,
-        # testFailed,
-        # testStdOut,
-        # testStdErr,
-    )
+    from teamcity import is_running_under_teamcity
+except ImportError:
+    def is_running_under_teamcity(): return False  # noqa: E301, E704
+
+try:
+    from teamcity.messages import TeamcityServiceMessages
 except ImportError:
     TeamcityServiceMessages = None
-    def is_running_under_teamcity(): return False  # noqa: E301, E704
+
+# testStarted,
+# testFinished,
+# testIgnored,
+# testFailed,
+# testStdOut,
+# testStdErr,
 
 from modernize_reporter import __version__
 from libmodernize import __version__ as __version_modernize__
@@ -196,6 +198,7 @@ def main(args=None):
         global VERBOSE
         VERBOSE = True
 
+    global TC
     elems_included = args[:]
     elems_excluded = []
     args_passed = []
@@ -238,6 +241,7 @@ def main(args=None):
     print()
     if is_running_under_teamcity():
         print('Note: Running under TeamCity')
+        TC = TeamcityServiceMessages() #prepend_linebreak=True)
     else:
         print('Note: NOT running under TeamCity')
     print()
