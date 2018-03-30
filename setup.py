@@ -3,7 +3,7 @@ import os
 import re
 from setuptools import setup
 
-readme = open(os.path.join(os.path.dirname(__file__), 'README.md'), 'r').read()
+readme = open(os.path.join(os.path.dirname(__file__), 'README.rst'), 'r').read()
 
 module_file = open(os.path.join(os.path.dirname(__file__), 'modernize_reporter', '__init__.py'), 'r').read()
 version_match = re.search(r"__version__ = ['\"]([^'\"]*)['\"]", module_file, re.M)

@@ -174,6 +174,10 @@ def main(args=None):
                       help="Prevent a fixer from being run.")
     parser.add_option("-p", "--print-function", action="store_true",
                       help="Modify the grammar so that print() is a function.")
+    parser.add_option("-w", "--write", action="store_true",
+                      help="Write back modified files.")
+    parser.add_option("-n", "--nobackups", action="store_true", default=False,
+                      help="Don't write backups for modified files.")
     parser.add_option("--six-unicode", action="store_true", default=False,
                       help="Wrap unicode literals in six.u().")
     parser.add_option("--future-unicode", action="store_true", default=False,
@@ -208,7 +212,7 @@ def main(args=None):
                 new_opts = ["--{}={}".format(option, v) for v in value]
                 target.extend(new_opts)
         elif isinstance(value, bool):
-            if value is not None:
+            if value is True:
                 new_opts = ["--{}".format(option)]
                 target.extend(new_opts)
         elif value is None:
