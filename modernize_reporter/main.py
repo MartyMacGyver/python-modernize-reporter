@@ -135,29 +135,30 @@ def check_modernizaitons(args, filename):
             print("STDERR___:", line)
         for line in slog.split('\n'):
             print("STDlog___:", line)
-    mods = []
     if exitcode == 2:
         if slog.find('RefactoringTool: No changes to ') != -1:
             # File was actually unchanged
             exitcode = 0
+    mods = []
+    for line in sout.split('\n'):
+        if mods or line.endswith('(original)'):
+            mods.append(line)
+            # if exitcode == 2:
+            #     tag = "modernize"
+            # else:
+            #     tag = "INT_ERROR"
+            # print("{}: {}".format(tag, line))
+    details = '\n'.join(mods)
     if exitcode == 0:
         print('no change: {}'.format(filename))
     elif exitcode == 2:
         print('needs fix: {}'.format(filename))
         if is_running_under_teamcity():
-            TC.testFailed(filename)
+            TC.testFailed(filename, message="Migration needed", details='Suggested changes:\n' + details)
     else:
         print('UNK_ERROR: {}'.format(filename))
         if is_running_under_teamcity():
-            TC.testFailed(filename)
-    for line in sout.split('\n'):
-        if mods or line.endswith('(original)'):
-            if exitcode == 2:
-                tag = "modernize"
-            else:
-                tag = "INT_ERROR"
-            mods.append(line)
-            print("{}: {}".format(tag, line))
+            TC.testFailed(filename, message="Unknown error", details='Unexpected output:\n' + details)
     if is_running_under_teamcity():
         TC.testFinished(filename)
     return (sout, serr, exitcode)
@@ -241,7 +242,7 @@ def main(args=None):
     print()
     if is_running_under_teamcity():
         print('Note: Running under TeamCity')
-        TC = TeamcityServiceMessages() #prepend_linebreak=True)
+        TC = TeamcityServiceMessages()
     else:
         print('Note: NOT running under TeamCity')
     print()
