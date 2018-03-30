@@ -52,40 +52,59 @@ def format_usage(usage):
     return usage
 
 
-def walk_tree(args, root, exclusions=None):
-    if exclusions is None:
-        exclusions = []
+def walk_tree(args, root, excluded_files=None, excluded_dirs=None):
+    print("walking  :", root)
+    print()
+    excluded_files = [] if excluded_files is None else excluded_files
+    excluded_dirs = [] if excluded_dirs is None else excluded_dirs
     if os.path.isfile(root):
         check_modernizaitons(args, root)
     else:
         for path, dirs, files in os.walk(root):
+            path_cleaned = path
+            if path_cleaned.startswith('./'):
+                path_cleaned = path_cleaned.split('./', 1)[1]
+            if path_cleaned in excluded_dirs:
+                if VERBOSE:
+                    print('=' * 78)
+                print("skip dir :", path_cleaned + '/')
+                print()
+                dirs[:] = []
+                files[:] = []
+                continue
             dirs[:] = [e for e in sorted(dirs) if not e.startswith('.')]
             files[:] = [e for e in sorted(files) if not e.startswith('.')]
             for elem in files:
                 filename = os.path.join(path, elem)
                 if filename.startswith('./'):
                     filename = filename.split('./', 1)[1]
+                if filename in excluded_files:
+                    if VERBOSE:
+                        print('=' * 78)
+                    print("skip file:", filename)
+                    print()
+                    continue
                 if os.path.splitext(elem)[1].lower() == '.py':
                     check_modernizaitons(args, filename)
+                    print()
 
 
 def check_modernizaitons(args, filename):
     if VERBOSE:
         print('=' * 78)
-    if is_running_under_teamcity():
-        TC.testStarted(filename)
-    if VERBOSE:
-        print('checking:  {}'.format(filename))
     full_args = args[:]
     full_args.append(filename)
     if VERBOSE:
-        print(full_args)
+        print("process  :", filename)
+        print("arguments:", full_args)
+    if is_running_under_teamcity():
+        TC.testStarted(filename)
 
     # stdout/stderr diversion block
-    stdout_orig = sys.__stdout__
+    stdout_orig = sys.stdout
     stdout_buffer = StringIO()
     sys.stdout = stdout_buffer
-    stderr_orig = sys.__stderr__
+    stderr_orig = sys.stderr
     stderr_buffer = StringIO()
     sys.stderr = stderr_buffer
     exitcode = -1
@@ -108,12 +127,12 @@ def check_modernizaitons(args, filename):
     LOG_CAPTURE_STRING.seek(0)
     LOG_CAPTURE_STRING.truncate(0)
     if VERBOSE or exitcode == -1:
-        for line in serr.split('\n'):
-            print("STDERR:", line)
         for line in sout.split('\n'):
-            print("STDOUT:", line)
+            print("STDOUT___:", line)
+        for line in serr.split('\n'):
+            print("STDERR___:", line)
         for line in slog.split('\n'):
-            print("STDlog:", line)
+            print("STDlog___:", line)
     mods = []
     if exitcode == 2:
         if slog.find('RefactoringTool: No changes to ') != -1:
@@ -126,7 +145,7 @@ def check_modernizaitons(args, filename):
         if is_running_under_teamcity():
             TC.testFailed(filename)
     else:
-        print('UNK error: {}'.format(filename))
+        print('UNK_ERROR: {}'.format(filename))
         if is_running_under_teamcity():
             TC.testFailed(filename)
     for line in sout.split('\n'):
@@ -136,9 +155,7 @@ def check_modernizaitons(args, filename):
             else:
                 tag = "INT_ERROR"
             mods.append(line)
-            if line:
-                print("{}: {}".format(tag, line), file=sys.stderr)
-    print()
+            print("{}: {}".format(tag, line))
     if is_running_under_teamcity():
         TC.testFinished(filename)
     return (sout, serr, exitcode)
@@ -209,18 +226,11 @@ def main(args=None):
     ch.setLevel(LOG_LEVEL)
     logger.addHandler(ch)
 
-    # print("original options:", options)
-    # print("original args:   ", args)
-    # print("local options:   ", args_local)
-    # print("passing options: ", args_passed)
-    # print("included elems:  ", elems_included)
-    # print("excluded elems:  ", elems_excluded)
-
     if not elems_included:
         parser.print_help()
         return -1
 
-    print('{} {} (importing libmodernize {})'.format(SCRIPT_NAME, __version__, __version_modernize__))
+    print('{} {} (using libmodernize {})'.format(SCRIPT_NAME, __version__, __version_modernize__))
     print()
     if is_running_under_teamcity():
         print('Note: Running under TeamCity')
@@ -228,8 +238,28 @@ def main(args=None):
         print('Note: NOT running under TeamCity')
     print()
 
+    if VERBOSE:
+        print("Original options:", options)
+        print("Original args:   ", args)
+        print("Local options:   ", args_local)
+        print("Passing options: ", args_passed)
+        print("Included elems:  ", elems_included)
+        print("Excluded elems:  ", elems_excluded)
+        print()
+
+    excluded_files = set()
+    excluded_dirs = set()
+    for exclusion in elems_excluded:
+        exclusion = exclusion.rstrip('/')
+        if os.path.isfile(exclusion):
+            excluded_files.add(exclusion)
+        elif os.path.isdir(exclusion):
+            excluded_dirs.add(exclusion)
+        else:
+            print("UNKNOWN:", exclusion)
+
     for root in elems_included:
-        walk_tree(args=args_passed, root=root, exclusions=elems_excluded)
+        walk_tree(args=args_passed, root=root, excluded_files=excluded_files, excluded_dirs=excluded_dirs)
     if VERBOSE:
         print('=' * 78)
 
