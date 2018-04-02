@@ -92,13 +92,16 @@ def walk_tree(args, root, excluded_files=None, excluded_dirs=None):
 
 
 def check_modernizaitons(args, filename):
+    """ Modernize (and 2to3) don't provide a uniform exit code to work with.
+        Parse all possible outputs to determine the true final state.
+    """
     if VERBOSE:
         print('=' * 78)
     full_args = args[:]
     full_args.append(filename)
     if VERBOSE:
-        print("process  :", filename)
-        print("arguments:", full_args)
+        print('process  :', filename)
+        print('arguments:', full_args)
     if is_running_under_teamcity():
         TC.testStarted(filename)
 
@@ -128,39 +131,52 @@ def check_modernizaitons(args, filename):
     LOG_CAPTURE_STRING.flush()
     LOG_CAPTURE_STRING.seek(0)
     LOG_CAPTURE_STRING.truncate(0)
+
+    if VERBOSE:
+        print('Exitcode (initial):', exitcode)
     if VERBOSE or exitcode == -1:
         for line in sout.split('\n'):
-            print("STDOUT___:", line)
+            print('STDOUT___:', line)
         for line in serr.split('\n'):
-            print("STDERR___:", line)
+            print('STDERR___:', line)
         for line in slog.split('\n'):
-            print("STDlog___:", line)
-    if exitcode == 2:
-        if slog.find('RefactoringTool: No changes to ') != -1:
-            # File was actually unchanged
-            exitcode = 0
+            print('STDlog___:', line)
     mods = []
     for line in sout.split('\n'):
-        if mods or line.endswith('(original)'):
+        if mods or line.endswith('\t(original)'):
             mods.append(line)
-            # if exitcode == 2:
-            #     tag = "modernize"
-            # else:
-            #     tag = "INT_ERROR"
-            # print("{}: {}".format(tag, line))
     details = '\n'.join(mods)
+    if exitcode == 2:
+        if slog.find('RefactoringTool: No changes to ') != -1:
+            exitcode = 0
+            if VERBOSE:
+                print('File NOT changed per RefactoringTool')
+    if details:
+        # Final arbiter: if there are mods in the output, something definitely happened!
+        exitcode = 2
+        if VERBOSE:
+            print('File changed per actual output')
+    if VERBOSE:
+        print('Exitcode (final):', exitcode)
+
     if exitcode == 0:
         print('no change: {}'.format(filename))
     elif exitcode == 2:
         print('needs fix: {}'.format(filename))
         if is_running_under_teamcity():
-            TC.testFailed(filename, message="Migration needed", details='Suggested changes:\n' + details)
+            TC.testFailed(filename, message='Migration needed', details='Suggested changes:\n' + details)
+        else:
+            print('\nSuggested changes:\n' + details)
     else:
         print('UNK_ERROR: {}'.format(filename))
         if is_running_under_teamcity():
-            TC.testFailed(filename, message="Unknown error", details='Unexpected output:\n' + details)
+            TC.testFailed(filename, message='Unknown error', details='Unexpected output:\n' + details)
+        else:
+            print('\nUnexpected output:\n' + details)
+
     if is_running_under_teamcity():
         TC.testFinished(filename)
+
     return (sout, serr, exitcode)
 
 
