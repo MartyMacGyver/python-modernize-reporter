@@ -159,20 +159,21 @@ def check_modernizaitons(args, filename):
     if VERBOSE:
         print('Exitcode (final):', exitcode)
 
+    cmd_line = 'modernize {}'.format(' '.join(args[:]))
     if exitcode == 0:
         print('no change: {}'.format(filename))
     elif exitcode == 2:
         print('needs fix: {}'.format(filename))
         if is_running_under_teamcity():
-            TC.testFailed(filename, message='Migration needed', details='Suggested changes:\n' + details)
+            TC.testFailed(filename, message='Migration needed', details='\nSuggested changes from `{}`:\n'.format(cmd_line) + details)
         else:
-            print('\nSuggested changes:\n' + details)
+            print('\nSuggested changes from `{}`:\n'.format(cmd_line) + details)
     else:
         print('UNK_ERROR: {}'.format(filename))
         if is_running_under_teamcity():
-            TC.testFailed(filename, message='Unknown error', details='Unexpected output:\n' + details)
+            TC.testFailed(filename, message='Unknown error', details='\nUnexpected output from `{}`:\n'.format(cmd_line) + details)
         else:
-            print('\nUnexpected output:\n' + details)
+            print('\nUnexpected output from `{}`:\n'.format(cmd_line) + details)
 
     if is_running_under_teamcity():
         TC.testFinished(filename)
