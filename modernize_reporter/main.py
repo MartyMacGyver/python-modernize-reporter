@@ -60,7 +60,7 @@ def walk_tree(args, root, excluded_files=None, excluded_dirs=None):
     excluded_files = [] if excluded_files is None else excluded_files
     excluded_dirs = [] if excluded_dirs is None else excluded_dirs
     if os.path.isfile(root):
-        check_modernizaitons(args, root)
+        check_modernizations(args, root)
     else:
         for path, dirs, files in os.walk(root):
             path_cleaned = path
@@ -87,11 +87,11 @@ def walk_tree(args, root, excluded_files=None, excluded_dirs=None):
                     print()
                     continue
                 if os.path.splitext(elem)[1].lower() == '.py':
-                    check_modernizaitons(args, filename)
+                    check_modernizations(args, filename)
                     print()
 
 
-def check_modernizaitons(args, filename):
+def check_modernizations(args, filename):
     """ Modernize (and 2to3) don't provide a uniform exit code to work with.
         Parse all possible outputs to determine the true final state.
     """
