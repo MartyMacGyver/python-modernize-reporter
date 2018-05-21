@@ -41,6 +41,7 @@ TC = TeamcityServiceMessages
 LOG_CAPTURE_STRING = StringIO()
 LOG_LEVEL = logging.DEBUG
 VERBOSE = False
+USE_TEAMCITY = False
 
 usage = __doc__ + """\
  %s
@@ -102,7 +103,7 @@ def check_modernizations(args, filename):
     if VERBOSE:
         print('process  :', filename)
         print('arguments:', full_args)
-    if is_running_under_teamcity():
+    if USE_TEAMCITY:
         TC.testStarted(filename)
 
     # stdout/stderr diversion block
@@ -164,18 +165,18 @@ def check_modernizations(args, filename):
         print('no change: {}'.format(filename))
     elif exitcode == 2:
         print('needs fix: {}'.format(filename))
-        if is_running_under_teamcity():
+        if USE_TEAMCITY:
             TC.testFailed(filename, message='Migration needed', details='\nSuggested changes from `{}`:\n\n'.format(cmd_line) + details)
         else:
             print('\nSuggested changes from `{}`:\n\n'.format(cmd_line) + details)
     else:
         print('UNK_ERROR: {}'.format(filename))
-        if is_running_under_teamcity():
+        if USE_TEAMCITY:
             TC.testFailed(filename, message='Unknown error', details='\nUnexpected output from `{}`:\n\n'.format(cmd_line) + details)
         else:
             print('\nUnexpected output from `{}`:\n\n'.format(cmd_line) + details)
 
-    if is_running_under_teamcity():
+    if USE_TEAMCITY:
         TC.testFinished(filename)
 
     return (sout, serr, exitcode)
@@ -210,13 +211,16 @@ def main(args=None):
                            "Useful for enforcing Python 3 compatibility.")
     parser.add_option("-e", "--exclude", action="append", default=[],
                       help="Exclude a file or directory")
+    parser.add_option("--teamcity", action="store", type="choice", default=None,
+                      choices=['true', 'false'],
+                      help="Force TeamCity state [true/false]")
     (options, args) = parser.parse_args(args)
 
     if options.verbose:
         global VERBOSE
         VERBOSE = True
 
-    global TC
+    global TC, USE_TEAMCITY
     elems_included = args[:]
     elems_excluded = []
     args_passed = []
@@ -224,9 +228,15 @@ def main(args=None):
     for option, value in options.__dict__.items():
         option = option.replace('_', '-')  # restore dashes changed by optparse
         target = args_passed
-        if option in []:
+        if option in ['teamcity']:
             target = args_local
-        if isinstance(value, list):
+            if value == 'false':
+                USE_TEAMCITY = False
+            elif value == 'true':
+                USE_TEAMCITY = True
+            else:
+                USE_TEAMCITY = is_running_under_teamcity()
+        elif isinstance(value, list):
             if option in ['exclude']:
                 elems_excluded.extend(options.exclude)
             else:
@@ -252,16 +262,15 @@ def main(args=None):
     logger.addHandler(ch)
 
     if not elems_included:
-        parser.print_help()
-        return -1
+        elems_included = ['.']
 
     print('{} {} (using libmodernize {})'.format(SCRIPT_NAME, __version__, __version_modernize__))
     print()
-    if is_running_under_teamcity():
-        print('Note: Running under TeamCity')
+    if USE_TEAMCITY:
+        print('Note: Running with TeamCity hooks')
         TC = TeamcityServiceMessages()
     else:
-        print('Note: NOT running under TeamCity')
+        print('Note: NOT running with TeamCity hooks')
     print()
 
     if VERBOSE:
